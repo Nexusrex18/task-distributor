@@ -21,6 +21,19 @@ func init() {
 	if err != nil {
 		log.Fatal("MinIO init failed:", err)
 	}
+
+	ctx := context.Background()
+	exists,err := minioClient.BucketExists(ctx, "processed")
+	if err != nil {
+		log.Fatal("Bucket check failed : ",err)
+	}
+
+	if !exists {
+		err = minioClient.MakeBucket(ctx, "processed", minio.MakeBucketOptions{})
+		if err != nil {
+			log.Fatal("Bucket creation failed: ",err);
+		}
+	}
 }
 
 func SaveToMinIO(bucket, objectName string, data []byte) error {
