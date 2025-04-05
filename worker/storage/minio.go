@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -23,15 +24,15 @@ func init() {
 	}
 
 	ctx := context.Background()
-	exists,err := minioClient.BucketExists(ctx, "processed")
+	exists, err := minioClient.BucketExists(ctx, "processed")
 	if err != nil {
-		log.Fatal("Bucket check failed : ",err)
+		log.Fatal("Bucket check failed : ", err)
 	}
 
 	if !exists {
 		err = minioClient.MakeBucket(ctx, "processed", minio.MakeBucketOptions{})
 		if err != nil {
-			log.Fatal("Bucket creation failed: ",err);
+			log.Fatal("Bucket creation failed: ", err)
 		}
 	}
 }
@@ -40,6 +41,15 @@ func SaveToMinIO(bucket, objectName string, data []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	if len(data) == 0 {
+		return errors.New("empty image data")
+	}
+
+	// Verify we're saving actual JPEG data
+    if !bytes.HasPrefix(data, []byte{0xFF, 0xD8}) {
+        return errors.New("invalid JPEG data")
+    }
+
 	reader := bytes.NewReader(data)
 	_, err := minioClient.PutObject(
 		ctx,
@@ -47,7 +57,9 @@ func SaveToMinIO(bucket, objectName string, data []byte) error {
 		objectName,
 		reader,
 		int64(len(data)),
-		minio.PutObjectOptions{},
+		minio.PutObjectOptions{
+			ContentType: "image/jpeg",
+		},
 	)
 	return err
 }
