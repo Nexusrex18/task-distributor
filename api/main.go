@@ -6,11 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Nexusrex18/task-distributer/api/handlers"
 	"github.com/Nexusrex18/task-distributer/api/metrics"
 	"github.com/Nexusrex18/task-distributer/api/nats"
 	"github.com/gin-gonic/gin"
+	natsio "github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -37,7 +39,17 @@ func main() {
 		natsURL = "nats://nats:4222"
 	}
 
-	nc, err := nats.Connect(natsURL)
+	var nc *natsio.Conn
+	var err error
+	for i:=0 ; i < 5;i++{
+		nc, err = nats.Connect(natsURL)
+		if err == nil {
+			log.Printf("Connected to NATS at %s",natsURL)
+			break
+		}
+		log.Printf("NATS connection attempt %d failed : %v",i+1,err)
+		time.Sleep(2*time.Second)
+	}
 	if err != nil {
 		log.Fatal("NATS connection failed: ", err)
 	}

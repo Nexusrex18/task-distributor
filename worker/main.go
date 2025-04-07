@@ -29,7 +29,18 @@ func main() {
 		natsURL = "nats://nats:4222"
 	}
 
-	nc, err := nats.Connect(natsURL)
+	var nc *natsio.Conn
+	var err error
+	for i:=0;i<5;i++ {
+		nc, err = nats.Connect(natsURL)
+		if (err == nil) {
+			log.Printf("Connected to NATS at %s",natsURL)
+			break
+		}
+		log.Printf("NATS connect attempt %d failed : %v",i+1,err)
+		time.Sleep(2*time.Second)
+	}
+ 
 	if err != nil {
 		log.Fatal("NATS connection failed: ", err)
 	}
