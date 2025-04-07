@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"time"
+	"os"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -14,27 +15,49 @@ import (
 var minioClient *minio.Client
 
 func init() {
+	endpoint := os.Getenv("MINIO_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "minio:9000"
+	}
+	
 	var err error
-	minioClient, err = minio.New("localhost:9000", &minio.Options{
-		Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
-		Secure: false,
-	})
-	if err != nil {
-		log.Fatal("MinIO init failed:", err)
-	}
-
-	ctx := context.Background()
-	exists, err := minioClient.BucketExists(ctx, "processed")
-	if err != nil {
-		log.Fatal("Bucket check failed : ", err)
-	}
-
-	if !exists {
-		err = minioClient.MakeBucket(ctx, "processed", minio.MakeBucketOptions{})
+	for i := 0; i < 10; i++ { // Increased retries to 10
+		// Initialize MinIO client
+		minioClient, err = minio.New(endpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4("minioadmin", "minioadmin", ""),
+			Secure: false,
+		})
 		if err != nil {
-			log.Fatal("Bucket creation failed: ", err)
+			log.Printf("MinIO client init attempt %d failed: %v", i+1, err)
+			time.Sleep(2 * time.Second)
+			continue
 		}
+
+		// Check bucket existence
+		ctx := context.Background()
+		exists, err := minioClient.BucketExists(ctx, "processed")
+		if err == nil && exists {
+			log.Println("MinIO bucket 'processed' already exists")
+			return // Success, exit init
+		}
+		if err != nil {
+			log.Printf("Bucket check attempt %d failed: %v", i+1, err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		// Create bucket if it doesn’t exist
+		err = minioClient.MakeBucket(ctx, "processed", minio.MakeBucketOptions{})
+		if err == nil {
+			log.Println("Created MinIO bucket 'processed'")
+			return // Success, exit init
+		}
+		log.Printf("Bucket creation attempt %d failed: %v", i+1, err)
+		time.Sleep(2 * time.Second)
 	}
+
+	// If we get here, all retries failed
+	log.Fatal("MinIO initialization failed after retries: ", err)
 }
 
 func SaveToMinIO(bucket, objectName string, data []byte) error {

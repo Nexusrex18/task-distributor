@@ -8,8 +8,10 @@ import (
 	"syscall"
 
 	"github.com/Nexusrex18/task-distributer/api/handlers"
+	"github.com/Nexusrex18/task-distributer/api/metrics"
 	"github.com/Nexusrex18/task-distributer/api/nats"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -28,13 +30,22 @@ func main() {
 	}), gin.Recovery(),
 	)
 
-	_ = r.SetTrustedProxies([]string{"127.0.0.1","::1"})
+	_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 
-	nc, err := nats.Connect("nats://localhost:4222")
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://nats:4222"
+	}
+
+	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Fatal("NATS connection failed: ", err)
 	}
 	defer nc.Close()
+
+	metrics.Register()
+
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	r.POST("/tasks", handlers.HandleTaskSubmission(nc))
 

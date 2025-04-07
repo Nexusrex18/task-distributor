@@ -1,0 +1,53 @@
+version: "3"
+services:
+  api:
+    build: ../api
+    ports:
+      - "8080:8080"
+    depends_on:
+      - nats
+  worker1:
+    build: ../worker
+    ports:
+      - "9091:9091"
+    depends_on:
+      - nats
+      - minio
+  worker2:
+    build: ../worker
+    ports:
+      - "9092:9091"
+    depends_on:
+      - nats
+      - minio
+  nats:
+    image: nats:latest
+    ports:
+      - "4222:4222"
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../config/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - api
+      - worker1
+      - worker2
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  minio-data:

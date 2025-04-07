@@ -6,20 +6,24 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
+	"github.com/Nexusrex18/task-distributer/api/metrics"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 )
 
-type TaskRequest struct {
-	Image  []byte `form:"image" binding:"required"`
-	Width  int    `form:"width" binding:"required"`
-	Height int    `form:"height" binding:"required"`
-}
+// type TaskRequest struct {
+// 	Image  []byte `form:"image" binding:"required"`
+// 	Width  int    `form:"width" binding:"required"`
+// 	Height int    `form:"height" binding:"required"`
+// }
 
 func HandleTaskSubmission(nc *nats.Conn) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		start := time.Now()
+
 		file, err := c.FormFile("image")
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -82,6 +86,9 @@ func HandleTaskSubmission(nc *nats.Conn) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to queue task"})
 			return
 		}
+
+		metrics.TasksSubmitted.Inc()
+		metrics.RequestDuration.Observe(time.Since(start).Seconds())
 
 		c.JSON(http.StatusAccepted, gin.H{
 			"id":     task.ID,
